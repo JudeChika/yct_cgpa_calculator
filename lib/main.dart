@@ -1,21 +1,28 @@
+// Modified to register repository providers and bloc providers for the new features.
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'domain/repositories/semester_repositories.dart';
+import 'domain/repositories/user_repositories.dart';
 import 'presentation/screens/welcome_screen.dart';
 import 'firebase_options.dart';
 import 'domain/repositories/auth_repository.dart';
+import 'infrastructure/firebase_user_repository.dart';
+import 'infrastructure/firebase_semester_repository.dart';
+import 'domain/repositories/firebase_auth_repository.dart';
+import 'bloc/auth/auth_bloc.dart';
+import 'bloc/profile/profile_cubit.dart';
+import 'bloc/semester/semesters_cubit.dart';
+import 'bloc/semester/semester_editor_cubit.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Guard Firebase initialization to avoid the core/duplicate-app error.
   if (Firebase.apps.isEmpty) {
     try {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
-      // ignore: avoid_print
-      print('Firebase initialized for project: ${Firebase.app().options.projectId}');
     } on FirebaseException catch (e) {
       if (e.code == 'duplicate-app') {
         // ignore: avoid_print
@@ -24,20 +31,41 @@ Future<void> main() async {
         rethrow;
       }
     }
-  } else {
-    // ignore: avoid_print
-    print('Firebase already initialized. Using existing default app: ${Firebase.app().name}');
   }
 
-  runApp(const MyApp());
+  // Infrastructure instances
+  final authRepository = FirebaseAuthRepository();
+  final userRepository = FirebaseUserRepository();
+  final semesterRepository = FirebaseSemesterRepository();
+
+  runApp(
+    MultiRepositoryProvider(
+      providers: [
+        RepositoryProvider<AuthRepository>.value(value: authRepository),
+        RepositoryProvider<UserRepository>.value(value: userRepository),
+        RepositoryProvider<SemesterRepository>.value(value: semesterRepository),
+      ],
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider<AuthBloc>(create: (_) => AuthBloc(authRepository: authRepository)),
+          BlocProvider<ProfileCubit>(
+            create: (ctx) => ProfileCubit(userRepository: userRepository, authStream: authRepository.user),
+          ),
+          BlocProvider<SemestersCubit>(
+            create: (ctx) => SemestersCubit(semesterRepository: semesterRepository, authStream: authRepository.user),
+          ),
+          BlocProvider<SemesterEditorCubit>(
+            create: (ctx) => SemesterEditorCubit(semesterRepository: semesterRepository),
+          ),
+        ],
+        child: const MyApp(),
+      ),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
-  /// Optional AuthRepository injection for tests.
-  /// If null, the app can still run normally (production wiring can provide a real repository).
-  final AuthRepository? authRepository;
-
-  const MyApp({super.key, this.authRepository});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -65,12 +93,6 @@ class MyApp extends StatelessWidget {
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF0F1113),
         primaryColor: Colors.green.shade600,
-        textTheme: GoogleFonts.poppinsTextTheme(ThemeData.dark().textTheme).copyWith(
-          headlineLarge: GoogleFonts.montserrat(fontSize: 32, fontWeight: FontWeight.bold),
-        ),
-        appBarTheme: AppBarTheme(
-          backgroundColor: Colors.green.shade800,
-        ),
       ),
       home: const WelcomeScreen(),
     );
