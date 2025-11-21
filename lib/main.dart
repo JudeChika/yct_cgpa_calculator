@@ -1,84 +1,78 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:yct_cgpa_calculator/presentation/screens/wrapper.dart';
+import 'presentation/screens/welcome_screen.dart';
+import 'firebase_options.dart';
+import 'domain/repositories/auth_repository.dart';
 
-import 'bloc/auth/auth_bloc.dart';
-import 'domain/repositories/firebase_auth_repository.dart';
-import 'firebase_options.dart'; // We will create this
-
-void main() async {
-  // Ensure Flutter is initialized
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // Guard Firebase initialization to avoid the core/duplicate-app error.
+  if (Firebase.apps.isEmpty) {
+    try {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      // ignore: avoid_print
+      print('Firebase initialized for project: ${Firebase.app().options.projectId}');
+    } on FirebaseException catch (e) {
+      if (e.code == 'duplicate-app') {
+        // ignore: avoid_print
+        print('Firebase already initialized (duplicate-app caught).');
+      } else {
+        rethrow;
+      }
+    }
+  } else {
+    // ignore: avoid_print
+    print('Firebase already initialized. Using existing default app: ${Firebase.app().name}');
+  }
 
-  // Initialize our Auth Repository
-  final authRepository = FirebaseAuthRepository();
-
-  runApp(MyApp(authRepository: authRepository));
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  final FirebaseAuthRepository _authRepository;
+  /// Optional AuthRepository injection for tests.
+  /// If null, the app can still run normally (production wiring can provide a real repository).
+  final AuthRepository? authRepository;
 
-  const MyApp({super.key, required FirebaseAuthRepository authRepository})
-      : _authRepository = authRepository;
+  const MyApp({super.key, this.authRepository});
 
   @override
   Widget build(BuildContext context) {
-    // Provide the Auth Repository to the entire app
-    return RepositoryProvider.value(
-      value: _authRepository,
-      child: BlocProvider(
-        create: (_) => AuthBloc(authRepository: _authRepository),
-        child: MaterialApp(
-          title: 'Yabatech CGPA Calculator',
-          debugShowCheckedModeBanner: false,
-
-          // --- Dark Mode & Theming ---
-
-          // Use system theme by default
-          themeMode: ThemeMode.system,
-
-          // Light Theme (Green & Cream)
-          theme: ThemeData(
-            brightness: Brightness.light,
-            scaffoldBackgroundColor: const Color(0xFFFFFBEA), // Cream
-            primarySwatch: Colors.green,
-            fontFamily: GoogleFonts.poppins().fontFamily,
-            appBarTheme: const AppBarTheme(
-              backgroundColor: Colors.green,
-            ),
-            floatingActionButtonTheme: const FloatingActionButtonThemeData(
-              backgroundColor: Colors.green,
-            ),
-          ),
-
-          // Dark Theme (Green & Dark Grey/Black)
-          darkTheme: ThemeData(
-            brightness: Brightness.dark,
-            scaffoldBackgroundColor: const Color(0xFF121212), // Dark grey
-            primarySwatch: Colors.green,
-            fontFamily: GoogleFonts.poppins().fontFamily,
-            appBarTheme: AppBarTheme(
-              backgroundColor: Colors.green[800],
-            ),
-            floatingActionButtonTheme: FloatingActionButtonThemeData(
-              backgroundColor: Colors.green[700],
-            ),
-          ),
-
-          // --- End Theming ---
-
-          // The Wrapper decides which screen to show
-          home: const Wrapper(),
+    final baseText = ThemeData.light().textTheme;
+    return MaterialApp(
+      title: 'Yabatech CGPA Calculator',
+      debugShowCheckedModeBanner: false,
+      themeMode: ThemeMode.system,
+      theme: ThemeData(
+        brightness: Brightness.light,
+        scaffoldBackgroundColor: Colors.white,
+        primaryColor: Colors.green.shade700,
+        colorScheme: ColorScheme.fromSwatch().copyWith(secondary: Colors.green),
+        textTheme: GoogleFonts.poppinsTextTheme(baseText).copyWith(
+          headlineLarge: GoogleFonts.montserrat(fontSize: 32, fontWeight: FontWeight.bold),
+          headlineMedium: GoogleFonts.montserrat(fontSize: 24, fontWeight: FontWeight.w600),
+          titleLarge: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
+        ),
+        appBarTheme: AppBarTheme(
+          backgroundColor: Colors.green.shade700,
+          titleTextStyle: GoogleFonts.montserrat(fontSize: 20, fontWeight: FontWeight.w600),
         ),
       ),
+      darkTheme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF0F1113),
+        primaryColor: Colors.green.shade600,
+        textTheme: GoogleFonts.poppinsTextTheme(ThemeData.dark().textTheme).copyWith(
+          headlineLarge: GoogleFonts.montserrat(fontSize: 32, fontWeight: FontWeight.bold),
+        ),
+        appBarTheme: AppBarTheme(
+          backgroundColor: Colors.green.shade800,
+        ),
+      ),
+      home: const WelcomeScreen(),
     );
   }
 }

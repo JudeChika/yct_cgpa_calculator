@@ -1,230 +1,137 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:yct_cgpa_calculator/presentation/screens/register_screen.dart';
-
-import '../../bloc/login/login_cubit.dart';
-import '../../domain/repositories/auth_repository.dart'; // We'll create this
+import '../../widgets/gradient_button.dart';
+import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
-
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  // Key to manage the form's state for validation
   final _formKey = GlobalKey<FormState>();
+  bool _loading = false;
+  final _emailCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+
+  InputDecoration _inputDecoration(String label, IconData icon) {
+    return InputDecoration(
+      labelText: label,
+      prefixIcon: Icon(icon),
+      border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
+    );
+  }
+
+  Future<void> _login() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _loading = true);
+    try {
+      final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _emailCtrl.text.trim(),
+        password: _passwordCtrl.text.trim(),
+      );
+
+      final uid = cred.user!.uid;
+
+      // fetch profile
+      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final profile = doc.exists ? doc.data()! : {
+        'fullName': cred.user!.email?.split('@').first ?? 'Student',
+        'matric': '',
+        'email': cred.user!.email,
+      };
+
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => HomeScreen(profile: profile)));
+    } on FirebaseAuthException catch (e) {
+      String message = 'Login failed. Please try again.';
+      if (e.code == 'user-not-found') message = 'No user found for that email.';
+      else if (e.code == 'wrong-password') message = 'Wrong password provided.';
+      else if (e.code == 'invalid-email') message = 'The email address is not valid.';
+      else if (e.code == 'INVALID_LOGIN_CREDENTIALS') message = 'Invalid login credentials.';
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      }
+    } catch (e) {
+      // ignore: avoid_print
+      print('Login Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    _passwordCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Provides the LoginCubit to all widgets below it
-    return BlocProvider(
-      create: (context) => LoginCubit(context.read<AuthRepository>()),
-      child: Scaffold(
-        body: BlocListener<LoginCubit, LoginState>(
-          // Listens for state changes to show errors
-          listener: (context, state) {
-            if (state.status == LoginStatus.failure) {
-              ScaffoldMessenger.of(context)
-                ..hideCurrentSnackBar()
-                ..showSnackBar(
-                  SnackBar(
-                    content: Text(state.errorMessage ?? 'Login Failed'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-            }
-          },
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // --- Logo with Animation ---
-                  Image.asset(
-                    'assets/yabatech_logo.png', // Make sure you added this to pubspec.yaml
-                    height: 100,
-                  )
-                      .animate()
-                      .fadeIn(duration: 600.ms)
-                      .scale(delay: 200.ms, duration: 400.ms),
-
-                  const SizedBox(height: 16),
-
-                  Text(
-                    'Welcome Back',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Login')),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            children: [
+              Text('Welcome Back', style: theme.textTheme.headlineMedium).animate().fadeIn(),
+              const SizedBox(height: 8),
+              Text('Sign in to your account', style: theme.textTheme.bodyMedium),
+              const SizedBox(height: 18),
+              Form(
+                key: _formKey,
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: _emailCtrl,
+                      decoration: _inputDecoration('Email', Icons.email),
+                      keyboardType: TextInputType.emailAddress,
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) return 'Please enter email';
+                        if (!v.contains('@')) return 'Enter a valid email';
+                        return null;
+                      },
                     ),
-                  ).animate().fadeIn(delay: 300.ms, duration: 500.ms),
-
-                  Text(
-                    'Sign in to your account',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ).animate().fadeIn(delay: 400.ms, duration: 500.ms),
-
-                  const SizedBox(height: 32),
-
-                  // --- Form ---
-                  Form(
-                    key: _formKey,
-                    child: Column(
-                      children: [
-                        _EmailInputField(),
-                        const SizedBox(height: 16),
-                        _PasswordInputField(),
-                        const SizedBox(height: 24),
-                        _LoginButton(formKey: _formKey),
-                      ],
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _passwordCtrl,
+                      decoration: _inputDecoration('Password', Icons.lock),
+                      obscureText: true,
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) return 'Please enter password';
+                        if (v.length < 6) return 'Password must be at least 6 characters';
+                        return null;
+                      },
                     ),
-                  ).animate().fadeIn(delay: 500.ms).slideY(begin: 0.2),
-
-                  const SizedBox(height: 24),
-
-                  // --- To Register Screen ---
-                  _SignUpButton(),
-                ],
+                    const SizedBox(height: 18),
+                    _loading
+                        ? const Center(child: CircularProgressIndicator())
+                        : GradientButton(
+                      text: 'Login',
+                      gradient: const LinearGradient(colors: [Color(0xFF17C77A), Color(0xFF0FB66B)]),
+                      onTap: _login,
+                    ).animate().fadeIn(),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Back to Welcome'),
+                    ),
+                  ],
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),
     );
-  }
-}
-
-// --- Helper Widgets for Cleaner Code ---
-
-class _EmailInputField extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    // Rebuilds when the Cubit's state changes
-    return BlocBuilder<LoginCubit, LoginState>(
-      buildWhen: (previous, current) => previous.email != current.email,
-      builder: (context, state) {
-        return TextFormField(
-          onChanged: (email) {
-            // Notifies the cubit of the change
-            context.read<LoginCubit>().emailChanged(email);
-          },
-          decoration: const InputDecoration(
-            labelText: 'Email',
-            prefixIcon: Icon(Icons.email),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.all(Radius.circular(12)),
-            ),
-          ),
-          keyboardType: TextInputType.emailAddress,
-          // --- Form Validation ---
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Please enter your email';
-            }
-            if (!value.contains('@')) {
-              return 'Please enter a valid email';
-            }
-            return null;
-          },
-        );
-      },
-    );
-  }
-}
-
-class _PasswordInputField extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<LoginCubit, LoginState>(
-      buildWhen: (previous, current) => previous.password != current.password,
-      builder: (context, state) {
-        return TextFormField(
-          onChanged: (password) {
-            context.read<LoginCubit>().passwordChanged(password);
-          },
-          decoration: const InputDecoration(
-            labelText: 'Password',
-            prefixIcon: Icon(Icons.lock),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.all(Radius.circular(12)),
-            ),
-          ),
-          obscureText: true,
-          // --- Form Validation ---
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Please enter your password';
-            }
-            if (value.length < 6) {
-              return 'Password must be at least 6 characters';
-            }
-            return null;
-          },
-        );
-      },
-    );
-  }
-}
-
-class _LoginButton extends StatelessWidget {
-  final GlobalKey<FormState> formKey;
-  const _LoginButton({required this.formKey});
-
-  @override
-  Widget build(BuildContext context) {
-    // Rebuilds only when the status changes
-    return BlocBuilder<LoginCubit, LoginState>(
-      buildWhen: (previous, current) => previous.status != current.status,
-      builder: (context, state) {
-        // Show loading spinner if status is loading
-        return state.status == LoginStatus.loading
-            ? const Center(child: CircularProgressIndicator())
-            : ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            minimumSize: const Size(double.infinity, 50),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            // Use gradient from your theme
-            backgroundColor: Theme.of(context).primaryColor,
-            foregroundColor: Colors.white,
-          ),
-          onPressed: () {
-            // --- Form Validation Trigger ---
-            if (formKey.currentState!.validate()) {
-              // Form is valid, tell Cubit to log in
-              context.read<LoginCubit>().logInWithCredentials();
-            }
-          },
-          child: const Text('Login', style: TextStyle(fontSize: 16)),
-        ).animate().scale(duration: 200.ms); // Click animation
-      },
-    );
-  }
-}
-
-class _SignUpButton extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Text("Don't have an account?"),
-        TextButton(
-          onPressed: () {
-            // Navigate to the Register screen
-            Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => const RegisterScreen(), // Placeholder
-            ));
-          },
-          child: const Text('Sign Up'),
-        ),
-      ],
-    ).animate().fadeIn(delay: 800.ms);
   }
 }
