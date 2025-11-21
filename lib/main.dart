@@ -15,21 +15,26 @@ import 'bloc/auth/auth_bloc.dart';
 import 'bloc/profile/profile_cubit.dart';
 import 'bloc/semester/semesters_cubit.dart';
 import 'bloc/semester/semester_editor_cubit.dart';
+import 'bloc/dashboard/dashboard_cubit.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  if (Firebase.apps.isEmpty) {
-    try {
+  
+  try {
+    if (Firebase.apps.isEmpty) {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
-    } on FirebaseException catch (e) {
-      if (e.code == 'duplicate-app') {
-        // ignore: avoid_print
-        print('Firebase already initialized (duplicate-app caught).');
-      } else {
-        rethrow;
-      }
+    } else {
+      print('Firebase already initialized (apps list not empty).');
+    }
+  } catch (e) {
+    // Catching all exceptions to be safe, checking message for duplicate
+    if (e.toString().contains('duplicate') || (e is FirebaseException && e.code == 'duplicate-app')) {
+      print('Firebase already initialized (caught exception: $e).');
+    } else {
+      // rethrow other errors
+      rethrow;
     }
   }
 
@@ -56,6 +61,9 @@ Future<void> main() async {
           ),
           BlocProvider<SemesterEditorCubit>(
             create: (ctx) => SemesterEditorCubit(semesterRepository: semesterRepository),
+          ),
+          BlocProvider<DashboardCubit>(
+            create: (ctx) => DashboardCubit(semestersCubit: ctx.read<SemestersCubit>()),
           ),
         ],
         child: const MyApp(),

@@ -1,9 +1,7 @@
 import 'dart:async';
 import 'package:bloc/bloc.dart';
-import 'package:equatable/equatable.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:yct_cgpa_calculator/bloc/semester/semesters_state.dart';
-import '../../domain/models/semester.dart';
 import '../../domain/repositories/semester_repositories.dart';
 
 class SemestersCubit extends Cubit<SemestersState> {

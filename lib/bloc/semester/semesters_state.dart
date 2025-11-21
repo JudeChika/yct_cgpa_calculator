@@ -22,4 +22,25 @@ class SemestersState extends Equatable {
 
   @override
   List<Object?> get props => [status, semesters, message];
+
+  T when<T>({
+    required T Function() initial,
+    required T Function() loading,
+    required T Function(List<Semester> semesters) loaded,
+    required T Function(String message) failure,
+    required T Function() unauthenticated,
+  }) {
+    switch (status) {
+      case SemestersStatus.initial:
+        return initial();
+      case SemestersStatus.loading:
+        return loading();
+      case SemestersStatus.loaded:
+        return loaded(semesters);
+      case SemestersStatus.failure:
+        return failure(message ?? 'Unknown error');
+      case SemestersStatus.unauthenticated:
+        return unauthenticated();
+    }
+  }
 }
