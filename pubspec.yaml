@@ -54,10 +54,6 @@ flutter_native_splash:
   image: assets/yabatech_logo.png
   image_dark: assets/yabatech_logo_dark.png
 
-  # Optional: To fill the background (like for a full-screen image)
-  # background_image: "assets/bg_light.png"
-  # background_image_dark: "assets/bg_dark.png"
-
   android: true
   ios: true
   web: false

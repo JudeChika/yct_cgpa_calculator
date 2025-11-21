@@ -7,15 +7,16 @@ allprojects {
         mavenCentral()
     }
 
+    // Apply Java 11 settings to all sub-projects
+    tasks.withType<JavaCompile>().configureEach {
+        sourceCompatibility = "11"
+        targetCompatibility = "11"
+    }
+
     tasks.withType<KotlinCompile>().configureEach {
         kotlinOptions {
             jvmTarget = "11"
         }
-    }
-
-    tasks.withType<JavaCompile>().configureEach {
-        sourceCompatibility = "11"
-        targetCompatibility = "11"
     }
 }
 
@@ -25,8 +26,6 @@ rootProject.layout.buildDirectory.value(newBuildDir)
 subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
-}
-subprojects {
     project.evaluationDependsOn(":app")
 }
 
