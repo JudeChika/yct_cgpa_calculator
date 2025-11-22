@@ -23,15 +23,24 @@ class Sparkline extends StatelessWidget {
       return Center(child: Text('No data yet', style: TextStyle(color: Colors.grey.shade400, fontSize: 12)));
     }
 
-    return CustomPaint(
-      painter: _SparklinePainter(
-        values: values,
-        lineColor: lineColor,
-        fillColor: fillColor,
-        lineWidth: lineWidth,
-      ),
-      child: Container(),
-    );
+    // Use LayoutBuilder to obtain constraints and ensure CustomPaint has an explicit size.
+    return LayoutBuilder(builder: (context, constraints) {
+      final width = constraints.maxWidth.isFinite && constraints.maxWidth > 0 ? constraints.maxWidth : MediaQuery.of(context).size.width;
+      final height = 80.0; // default height used elsewhere in the app
+      return SizedBox(
+        width: width,
+        height: height,
+        child: CustomPaint(
+          painter: _SparklinePainter(
+            values: values,
+            lineColor: lineColor,
+            fillColor: fillColor,
+            lineWidth: lineWidth,
+          ),
+          size: Size(width, height),
+        ),
+      );
+    });
   }
 }
 
@@ -59,11 +68,13 @@ class _SparklinePainter extends CustomPainter {
     // Define Y range (0.0 to 4.0 is typical GPA range)
     const double minY = 0.0;
     const double maxY = 4.0;
-    
+
+    if (values.isEmpty) return;
+
     if (values.length < 2) {
-      // Draw a single point or horizontal line
       final y = size.height - ((values.first - minY) / (maxY - minY)) * size.height;
-      canvas.drawCircle(Offset(size.width / 2, y), 4, paint..style = PaintingStyle.fill);
+      final p = Paint()..color = lineColor..style = PaintingStyle.fill;
+      canvas.drawCircle(Offset(size.width / 2, y), 4, p);
       return;
     }
 
@@ -98,14 +109,13 @@ class _SparklinePainter extends CustomPainter {
     // Draw line
     paint.style = PaintingStyle.stroke;
     canvas.drawPath(path, paint);
-    
+
     // Draw points
-    paint.style = PaintingStyle.fill;
-    paint.color = lineColor;
+    final pointPaint = Paint()..color = lineColor..style = PaintingStyle.fill;
     for (int i = 0; i < values.length; i++) {
-       double x = stepX * i;
-       double y = size.height - ((values[i] - minY) / (maxY - minY)) * size.height;
-       canvas.drawCircle(Offset(x, y), 3, paint);
+      double x = stepX * i;
+      double y = size.height - ((values[i] - minY) / (maxY - minY)) * size.height;
+      canvas.drawCircle(Offset(x, y), 3, pointPaint);
     }
   }
 

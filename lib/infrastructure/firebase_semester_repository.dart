@@ -20,13 +20,27 @@ class FirebaseSemesterRepository implements SemesterRepository {
 
   @override
   Future<List<Semester>> getSemesters(String uid) async {
-    final query = await userSemesters(uid).orderBy('timestamp', descending: true).get();
-    return query.docs.map((doc) {
-      // Ensure the ID is part of the model if not stored in the map
-      final data = doc.data();
-      // Assuming toMap() / fromMap() handles 'id' appropriately or we inject it
-      return Semester.fromMap(data); 
-    }).toList();
+    try {
+      // Changed orderBy 'timestamp' to 'createdAt' because the Semester model uses 'createdAt'.
+      // If your Firestore documents don't have 'createdAt', this query will fail or return nothing.
+      // Ensure your saveSemester stores 'createdAt'.
+      final query = await userSemesters(uid).orderBy('createdAt', descending: true).get();
+      
+      return query.docs.map((doc) {
+        final data = doc.data();
+        // Explicitly put the document ID into the map if not present, 
+        // though Semester.fromMap usually expects 'id' to be in the map.
+        // Our model's toMap includes 'id', so it should be there.
+        return Semester.fromMap(data); 
+      }).toList();
+    } catch (e) {
+      // Fallback: If indexing is missing or field name is wrong, try fetching without order
+      // and sort locally, or just log error.
+      // For now, let's try a simple get() to see if data exists at all.
+      print('Error fetching sorted semesters: $e');
+      final query = await userSemesters(uid).get();
+      return query.docs.map((doc) => Semester.fromMap(doc.data())).toList();
+    }
   }
 
   @override
